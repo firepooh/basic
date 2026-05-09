@@ -6,7 +6,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_random.h>
@@ -22,6 +25,54 @@ static const char* TAG = "example";
 
 static EventGroupHandle_t evt_group;
 #define EVT_CONNECTED BIT0
+
+static volatile bool s_power_on = false;
+
+// ── Blynk Terminal ────────────────────────────────────────────────────────────
+
+static void terminal_send(const char* fmt, ...) {
+   char buf[256];
+   va_list ap;
+   va_start(ap, fmt);
+   vsnprintf(buf, sizeof(buf), fmt, ap);
+   va_end(ap);
+   edgent_publish_ds_str("Terminal", buf);
+}
+
+static void terminal_handle_cmd(const char* cmd) {
+   ESP_LOGI(TAG, "Terminal cmd: %s", cmd);
+
+   if (strcasecmp(cmd, "help") == 0) {
+      terminal_send(
+         "Commands:\n"
+         "  power on   - Turn power ON\n"
+         "  power off  - Turn power OFF\n"
+         "  status     - Show device status\n"
+         "  restart    - Restart device\n"
+         "  help       - This message\n"
+      );
+   } else if (strcasecmp(cmd, "power on") == 0) {
+      s_power_on = true;
+      terminal_send("Power -> ON");
+   } else if (strcasecmp(cmd, "power off") == 0) {
+      s_power_on = false;
+      terminal_send("Power -> OFF");
+   } else if (strcasecmp(cmd, "status") == 0) {
+      uint32_t uptime_ms = pdTICKS_TO_MS(xTaskGetTickCount());
+      terminal_send(
+         "Power  : %s\nUptime : %lu s\nHeap   : %lu bytes\n",
+         s_power_on ? "ON" : "OFF",
+         (unsigned long)(uptime_ms / 1000),
+         (unsigned long)esp_get_free_heap_size()
+      );
+   } else if (strcasecmp(cmd, "restart") == 0) {
+      terminal_send("Restarting...");
+      vTaskDelay(pdMS_TO_TICKS(500));
+      esp_restart();
+   } else {
+      terminal_send("Unknown command: '%s'  (type 'help')", cmd);
+   }
+}
 
 #if CONFIG_IDF_TARGET_ESP32 || CONFIG_IDF_TARGET_ESP32S3
 #   define BOOT_BUTTON_NUM 0
@@ -60,6 +111,9 @@ static void button_init(uint32_t button_num) {
 
 static void on_downlink_datastream_callback(const char* topic, int topic_len, const char* data, int data_len) {
    ESP_LOGI(TAG, "Datastream received — topic: %s, data: %s", topic, data);
+   if (strstr(topic, "Terminal")) {
+      terminal_handle_cmd(data);
+   }
 }
 
 static void on_downlink_callback(const char* topic, int topic_len, const char* data, int data_len) {
