@@ -1,0 +1,53 @@
+dependencies:
+  blynk/edgent:
+    component_hash: c37cbfaa4210aaa2b77222928ce52d8e0f82b99a75661507bd91497b78f68a34
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.4,<=5.5.2'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32
+    - esp32s3
+    - esp32c2
+    - esp32c3
+    - esp32c5
+    - esp32c6
+    version: 1.0.0
+  espressif/button:
+    component_hash: d0afa32f0e50d60bc0c6fc23f7eea98adc6b02cfe70b590bc52c23c506745287
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: '*'
+    - name: idf
+      require: private
+      version: '>=4.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 4.1.6
+  espressif/cmake_utilities:
+    component_hash: 05165f30922b422b4b90c08845e6d449329b97370fbd06309803d8cb539d79e3
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.1.1
+  idf:
+    source:
+      type: idf
+    version: 5.5.2
+direct_dependencies:
+- blynk/edgent
+- espressif/button
+- idf
+manifest_hash: 13705142e89e88f377c850a51f733df33abf6dda6c8d7db206108a9e7a3c3c83
+target: esp32s3
+version: 2.0.0

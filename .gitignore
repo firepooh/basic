@@ -1,0 +1,18 @@
+# ESP-IDF build output
+build/
+sdkconfig.old
+
+# Dependencies managed by IDF Component Manager
+managed_components/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
