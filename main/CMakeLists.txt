@@ -1,3 +1,8 @@
-idf_component_register(SRCS 
+idf_component_register(SRCS
                     "main.cpp"
-                    INCLUDE_DIRS ".")
+                    "console.cpp"
+                    INCLUDE_DIRS "."
+                    REQUIRES
+                        console
+                        nvs_flash
+                        esp_event)
