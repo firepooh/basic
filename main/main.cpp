@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/time.h>
 #include <esp_log.h>
 #include <esp_system.h>
 #include <esp_random.h>
@@ -20,6 +21,7 @@
 #include <button_gpio.h>
 #include "blynk_edgent.h"
 #include "console.h"
+#include "weather.h"
 
 static const char* TAG = "example";
 
@@ -48,9 +50,32 @@ static void terminal_handle_cmd(const char* cmd) {
          "  power on   - Turn power ON\n"
          "  power off  - Turn power OFF\n"
          "  status     - Show device status\n"
+         "  weather    - Show Seoul weather\n"
          "  restart    - Restart device\n"
          "  help       - This message\n"
       );
+   } else if (strcasecmp(cmd, "weather") == 0) {
+      terminal_send("날씨 조회 중...");
+      weather_data_t wx;
+      if (weather_fetch(&wx) == ESP_OK && wx.valid) {
+         terminal_send(
+            "서울 날씨\n"
+            "기온: %.1f°C\n"
+            "하늘: %s\n"
+            "강수: %s\n"
+            "강수확률: %d%%\n"
+            "풍속: %.1fm/s\n"
+            "습도: %d%%",
+            wx.temperature,
+            weather_sky_str(wx.sky),
+            weather_pty_str(wx.pty),
+            wx.pop,
+            wx.wsd,
+            wx.reh
+         );
+      } else {
+         terminal_send("날씨 조회 실패 (시각 미동기화 또는 네트워크 오류)");
+      }
    } else if (strcasecmp(cmd, "power on") == 0) {
       s_power_on = true;
       terminal_send("Power -> ON");
@@ -118,6 +143,23 @@ static void on_downlink_datastream_callback(const char* topic, int topic_len, co
 
 static void on_downlink_callback(const char* topic, int topic_len, const char* data, int data_len) {
    ESP_LOGI(TAG, "Downlink received — topic: %s, data: %s", topic, data);
+
+   // Blynk UTC 응답 → 시스템 클럭 설정
+   // data 예시: {"time":1778400269383,"iso8601":"2026-05-10T17:04:29+09:00",...}
+   if (strstr(topic, "utc")) {
+      const char *p = strstr(data, "\"time\":");
+      if (p) {
+         long long ms = 0;
+         sscanf(p + 7, "%lld", &ms);
+         if (ms > 1000000000000LL) {
+            struct timeval tv;
+            tv.tv_sec  = (time_t)(ms / 1000);
+            tv.tv_usec = (suseconds_t)((ms % 1000) * 1000);
+            settimeofday(&tv, NULL);
+            ESP_LOGI(TAG, "시스템 시각 동기화 완료: %lld", (long long)tv.tv_sec);
+         }
+      }
+   }
 }
 
 static void on_state_change(void) {
@@ -164,10 +206,28 @@ void other_task(void* arg) {
       ESP_LOGI(TAG, "[%s] Cloud connected event received! Continuing...", pcTaskGetName(NULL));
    }
 
+   bool         wx_fetched    = false;
+   TickType_t   wx_last_tick  = 0;
+   const TickType_t WX_INTERVAL = pdMS_TO_TICKS(30UL * 60 * 1000); // 30분마다 갱신
+
    while (true) {
       double rnd = 10.0 + (esp_random() % 2501) / 100.0;
       edgent_publish_ds_float("Set Temperature", rnd, 2);
       edgent_publish_ds_int("Status", rand() % 5);
+
+      TickType_t now = xTaskGetTickCount();
+      if (!wx_fetched || (now - wx_last_tick) >= WX_INTERVAL) {
+         weather_data_t wx;
+         if (weather_fetch(&wx) == ESP_OK && wx.valid) {
+            edgent_publish_ds_float("Weather Temp", wx.temperature, 1);
+            edgent_publish_ds_int("Weather POP",      wx.pop);
+            edgent_publish_ds_int("Weather Humidity", wx.reh);
+            wx_last_tick = now;
+            wx_fetched   = true;
+         }
+         // 실패 시(시각 미동기화·네트워크 오류) wx_fetched 그대로 → 10초 후 재시도
+      }
+
       vTaskDelay(pdMS_TO_TICKS(10000));
    }
 }
@@ -224,9 +284,9 @@ extern "C" void app_main(void) {
    // create parallel task
    xTaskCreate(other_task,
                "other_task",
-               1024*4,
+               1024*8,
                NULL,
-               tskIDLE_PRIORITY + 1, // default normal priority
+               tskIDLE_PRIORITY + 1,
                NULL);
 
    ESP_LOGI(TAG, "Awaiting Cloud connection...");
