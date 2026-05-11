@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Remove-Item \"c:\\\\work\\\\ESP32\\\\basic\\\\.vscode\\\\c_cpp_properties.json\")",
+      "Read(//c/Users/jypark7/.claude/projects/c--work-ESP32-basic/memory/**)",
+      "Bash(dir \"c:\\\\work\\\\ESP32\\\\basic\\\\managed_components\\\\blynk__edgent\" /s /b)"
+    ],
+    "additionalDirectories": [
+      "c:\\work\\ESP32\\basic\\.vscode"
+    ]
+  }
+}

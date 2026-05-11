@@ -26,7 +26,9 @@
 static const char* TAG = "example";
 
 static EventGroupHandle_t evt_group;
-#define EVT_CONNECTED BIT0
+#define EVT_CONNECTED       BIT0
+#define PUBLISH_INTERVAL_MS      (5 * 60 * 1000U)   // other_task 전송 주기
+#define MAIN_PUBLISH_INTERVAL_MS (5 * 60 * 1000U)   // app_main 전송 주기
 
 static volatile bool s_power_on = false;
 
@@ -52,6 +54,7 @@ static void terminal_handle_cmd(const char* cmd) {
          "  status     - Show device status\n"
          "  weather    - Show Seoul weather\n"
          "  restart    - Restart device\n"
+         "  ver        - Show firmware version\n"
          "  help       - This message\n"
       );
    } else if (strcasecmp(cmd, "weather") == 0) {
@@ -90,6 +93,8 @@ static void terminal_handle_cmd(const char* cmd) {
          (unsigned long)(uptime_ms / 1000),
          (unsigned long)esp_get_free_heap_size()
       );
+   } else if (strcasecmp(cmd, "ver") == 0) {
+      terminal_send("Firmware: v" CONFIG_BLYNK_FIRMWARE_VERSION);
    } else if (strcasecmp(cmd, "restart") == 0) {
       terminal_send("Restarting...");
       vTaskDelay(pdMS_TO_TICKS(500));
@@ -178,8 +183,7 @@ static void on_config_change(void) {
 }
 
 void on_reboot_request(void) {
-   ESP_LOGI(TAG, "Blynk.Edgent initiated reboot");
-   esp_restart();
+   xTaskCreate([](void*){ esp_restart(); }, "rst", 2048, NULL, configMAX_PRIORITIES - 1, NULL);
 }
 
 // Event handler
@@ -228,7 +232,7 @@ void other_task(void* arg) {
          // 실패 시(시각 미동기화·네트워크 오류) wx_fetched 그대로 → 10초 후 재시도
       }
 
-      vTaskDelay(pdMS_TO_TICKS(10000));
+      vTaskDelay(pdMS_TO_TICKS(PUBLISH_INTERVAL_MS));
    }
 }
 
@@ -315,6 +319,6 @@ extern "C" void app_main(void) {
       edgent_set_property("uptime", "isDisabled", bON ? "false" : "true");
 
       bON = !bON;
-      vTaskDelay(pdMS_TO_TICKS(15000));
+      vTaskDelay(pdMS_TO_TICKS(MAIN_PUBLISH_INTERVAL_MS));
    }
 }
